@@ -8,7 +8,9 @@ using namespace cv;
 #define GREEN 1
 #define BLUE 0
 
-void skinDet(string imgColor);
+Mat skinDet(string imgColor);
+void textSegment(string imgBimodal);
+void erode_dilate(string imgPath, Mat mask);
 
 int main(int argc, const char**argv)
 {
@@ -35,47 +37,18 @@ int main(int argc, const char**argv)
     cout << "bimodal image path: " << imgPath_bimodal << endl;
 
     //skindetection
-    skinDet(imgPath_color);
+    Mat skinMask = skinDet(imgPath_color);
 
-    //OTSU
-    Mat mask;
-    Mat img_color = imread(imgPath_bimodal);
-    Mat img_gray;
-    cvtColor(img_color, img_gray, COLOR_BGR2GRAY);      //convert to image to grayscale
+    //textSegmentation
+    textSegment(imgPath_bimodal);
 
-    namedWindow("Grayscale image", WINDOW_AUTOSIZE);
-    imshow("Grayscale image", img_gray);
+    //ruisonderdrukking
+    erode_dilate(imgPath_color, skinMask);
 
-    threshold(img_gray, mask, 0, 255, THRESH_OTSU | THRESH_BINARY); //apply OTSU thresholding
-    namedWindow("OTSU", WINDOW_AUTOSIZE);
-    imshow("OTSU", mask);
-
-    Mat mask_equalized;
-    equalizeHist(mask, mask_equalized);
-
-    namedWindow("Histogram equalized", WINDOW_AUTOSIZE);
-    imshow("Histogram equalized", mask_equalized);
-
-    //CLAHE
-    Mat mask_clahe;
-    Ptr<CLAHE> clahe_pointer = createCLAHE();
-    clahe_pointer->setTilesGridSize(Size(15, 15));
-    clahe_pointer->setClipLimit(1);
-    clahe_pointer->apply(mask_clahe.clone(), mask_clahe);
-    namedWindow("CLAHE", WINDOW_AUTOSIZE);
-    imshow("CLAHE", mask_clahe);
-
-    //CLAHE threshold
-    Mat mask_clahe_thresh;
-    threshold(mask_clahe, mask_clahe_thresh, 0, 255, THRESH_OTSU | THRESH_BINARY); //apply OTSU thresholding
-    namedWindow("CLAHE thresh", WINDOW_AUTOSIZE);
-    imshow("CLAHE thresh", mask_clahe_thresh);
-
-    waitKey(0);
     return 0;
 }
 
-void skinDet(string imgColor){
+Mat skinDet(string imgColor){
     Mat image = imread(imgColor, IMREAD_COLOR);
 
     namedWindow("Color image", WINDOW_AUTOSIZE);
@@ -101,16 +74,85 @@ void skinDet(string imgColor){
 
     namedWindow("Skin", WINDOW_AUTOSIZE);
     imshow("Skin", mask_1);
+    waitKey(0);
+    cvDestroyAllWindows();      //closes all open windows
+    return mask_1;
+}
+
+void textSegment(string imgBimodal){
+    //OTSU
+    Mat mask;
+    Mat img_color = imread(imgBimodal);
+    Mat img_gray;
+    cvtColor(img_color, img_gray, COLOR_BGR2GRAY);      //convert to image to grayscale
+
+    namedWindow("Grayscale image", WINDOW_AUTOSIZE);
+    imshow("Grayscale image", img_gray);
+
+    threshold(img_gray, mask, 0, 255, THRESH_OTSU | THRESH_BINARY); //apply OTSU thresholding
+    namedWindow("OTSU", WINDOW_AUTOSIZE);
+    imshow("OTSU", mask);
+
+    Mat mask_equalized;
+    equalizeHist(img_gray, mask_equalized);
+
+    namedWindow("Histogram equalized", WINDOW_AUTOSIZE);
+    imshow("Histogram equalized", mask_equalized);
+
+    //CLAHE
+    Mat mask_clahe;
+    Ptr<CLAHE> clahe_pointer = createCLAHE();
+    clahe_pointer->setTilesGridSize(Size(15, 15));
+    clahe_pointer->setClipLimit(1);
+    clahe_pointer->apply(img_gray.clone(), mask_clahe);
+    namedWindow("CLAHE", WINDOW_AUTOSIZE);
+    imshow("CLAHE", mask_clahe);
+
+    //CLAHE threshold
+    Mat mask_clahe_thresh;
+    threshold(mask_clahe, mask_clahe_thresh, 0, 255, THRESH_OTSU | THRESH_BINARY); //apply OTSU thresholding
+    namedWindow("CLAHE thresh", WINDOW_AUTOSIZE);
+    imshow("CLAHE thresh", mask_clahe_thresh);
+
+    waitKey(0);
+    cvDestroyAllWindows();
     return;
 }
 
+void erode_dilate(string imgPath, Mat mask){
+    Mat image = imread(imgPath, IMREAD_COLOR);
+    Mat combined;
+    Mat result;
 
-//deel 2
-/*
-erode(in, out, Mat(), Point(-1, -1), 2);
-dilate(in, out, Mat(), Point(-1, -1), 2);
-...
-dilate();
-erode();
-findContours(in, out, RETR_EXTERNAL, CHAIN_APPROX_NONE);
-*/
+    erode(mask, result, Mat(), Point(-1, -1), 2);           //erode 2 times
+    namedWindow("Erode", WINDOW_AUTOSIZE);
+    imshow("Erode", result);
+
+    dilate(result, result, Mat(), Point(-1, -1), 6);       //dilate 6 times
+    namedWindow("Erode-dilate", WINDOW_AUTOSIZE);
+    imshow("Erode-dilate", result);
+
+    vector<vector<Point> > contour;
+    findContours(result, contour, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+    Mat drawing = Mat::zeros( result.size(), CV_8UC3 );
+
+    vector<vector<Point>>hull(contour.size());              //a convex hull around objects
+    for(int i = 0; i < contour.size(); i++){
+        convexHull(Mat(contour[i]), hull[i], false);
+    }
+
+    for(int i = 0; i < contour.size(); i++){
+        drawContours(result, hull, i, 255, -1, 8);          //-1: fill contours to get blobs
+    }
+    namedWindow("Contour", WINDOW_AUTOSIZE);
+    imshow("Contour", result);
+
+    image.copyTo(combined, result);
+    namedWindow("Masked image", WINDOW_AUTOSIZE);
+    imshow("Masked image", combined);
+
+    waitKey(0);
+    cvDestroyAllWindows();
+    return;
+}
