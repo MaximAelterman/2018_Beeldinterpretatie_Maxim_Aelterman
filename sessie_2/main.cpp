@@ -10,6 +10,7 @@ using namespace cv;
 
 void segment_bgr(Mat image);
 void segment_hsv(Mat image);
+static void trackbar_callback(int, void *);
 
 int main(int argc, const char**argv)
 {
@@ -50,16 +51,7 @@ void segment_bgr(Mat image){
     Mat G = channels[GREEN];
     Mat B = channels[BLUE];
 
-    mask = ((R>120) & (G<100) & (B<100));
-
-    floodFill(mask, cv::Point(0,0), Scalar(255));
-
-    for(int row = 0; row < mask.rows; row++){
-        for(int col = 0; col < mask.cols; col++){
-            if(mask.at<uchar>(row, col) == 255) mask.at<uchar>(row, col) = 0;
-            else mask.at<uchar>(row, col) = 255;
-        }
-    }
+    mask = ((R>100) & (G<60) & (B<60));
 
     namedWindow("Red channel", WINDOW_AUTOSIZE);
     imshow("Red channel", mask);
@@ -70,60 +62,87 @@ void segment_bgr(Mat image){
 
 void segment_hsv(Mat image){
     Mat img_hsv;
-    Mat result;
-    Mat combined;
+
+    int hue_low = 40;
+    int hue_high = 180;
+    int sat_low = 130;
+    int sat_high = 255;
+    int val_low = 80;
+    int val_high = 250;
+
     cvtColor(image, img_hsv, CV_BGR2HSV);
-    Mat channelHSV[3];
-    split(img_hsv, channelHSV);
 
-    Mat H = channelHSV[0];
-    Mat S = channelHSV[1];
-    Mat V = channelHSV[2];
-
-    Mat h_dest1, h_dest2, s_dest;
-    inRange(H, 168, 180, h_dest1);      //red is around 180, but 180+1 = 0 here. so call twice
-    inRange(H, 0, 10, h_dest2);
-    inRange(S, 100, 255, s_dest);
-
-    H = (h_dest1 | h_dest2) & s_dest;   //combine the results from above into a mask
-    namedWindow("H threshold", WINDOW_AUTOSIZE);
-    imshow("H threshold", H);
-
-        //erode and dilate to clean up the image
-    erode(H, result, Mat(), Point(-1, -1), 6);           //erode 2 times
-    dilate(result, result, Mat(), Point(-1, -1), 6);       //dilate 6 times
-    namedWindow("Cleaned", WINDOW_AUTOSIZE);
-    imshow("Cleaned", result);
-
-        //connected component analysis
-    vector<vector<Point> > contour;
-    findContours(result, contour, RETR_EXTERNAL, CHAIN_APPROX_NONE);
-
-    vector<Point> biggest_blob = contour[0];
-    for(int i = 0; i < contour.size(); i++) {
-        if(contourArea(contour[i]) > contourArea(biggest_blob)){
-            biggest_blob = contour[i];
-        }
-    }
-    vector<vector<Point>> temp;
-    temp.push_back(biggest_blob);
-
-    vector<vector<Point>>hull(contour.size());              //a convex hull around objects
-    for(int i = 0; i < temp.size(); i++){
-        convexHull(Mat(temp[i]), hull[i], false);
-    }
-
-    for(int i = 0; i < contour.size(); i++){
-        drawContours(result, hull, i, 255, -1, 8);          //-1: fill contours to get blobs
-    }
-
+    namedWindow("Mask", WINDOW_AUTOSIZE);
+    namedWindow("Cleaned mask", WINDOW_AUTOSIZE);
     namedWindow("Contour", WINDOW_AUTOSIZE);
-    imshow("Contour", result);
+    namedWindow("HSV - Press q to quit");
 
-    image.copyTo(combined, result);
-    namedWindow("Masked image", WINDOW_AUTOSIZE);
-    imshow("Masked image", combined);
+    createTrackbar("hue_low", "HSV - Press q to quit", &hue_low, 180, trackbar_callback);
+    createTrackbar("hue_high", "HSV - Press q to quit", &hue_high, 360, trackbar_callback);     //hue_high goes to 360 so its possible to include a wider range of red in the mask
+    createTrackbar("sat_low", "HSV - Press q to quit", &sat_low, 255, trackbar_callback);
+    createTrackbar("sat_high", "HSV - Press q to quit", &sat_high, 255, trackbar_callback);
+    createTrackbar("val_low", "HSV - Press q to quit", &val_low, 250, trackbar_callback);
+    createTrackbar("val_high", "HSV - Press q to quit", &val_high, 250, trackbar_callback);
 
-    waitKey(0);
+    while(true){        //infinite loop to refresh windows
+        Mat mask;
+        Mat mask_temp;
+        Mat mask_cleaned;
+        Mat result;
+        Mat combined;
+
+        if(hue_high > 180){
+            inRange(img_hsv, Scalar(hue_low, sat_low, val_low), Scalar(180, sat_high, val_high), mask);             //hue of red below 180°
+            inRange(img_hsv, Scalar(0, sat_low, val_low), Scalar(hue_high-180, sat_high, val_high), mask_temp);     //hue of red above 180° (or 0°)
+            mask |= mask_temp;      //or the two masks to combine them
+        }
+        else inRange(img_hsv, Scalar(hue_low, sat_low, val_low), Scalar(hue_high, sat_high, val_high), mask);
+
+        imshow("Mask", mask);
+
+                //clean up noise
+        dilate(mask, mask_cleaned, Mat(), Point(-1, -1), 6);                            //dilate 6 times
+        erode(mask_cleaned, mask_cleaned, Mat(), Point(-1, -1), 6);                     //erode 6 times
+        imshow("Cleaned mask", mask_cleaned);
+
+                //connected component analysis
+        vector<vector<Point> > contour;
+        findContours(mask_cleaned, contour, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+        vector<Point> biggest_blob;
+
+        if(contour.size() > 0){                 //program used to crash when no contours were found
+            biggest_blob = contour[0];
+
+            for(int i = 0; i < contour.size(); i++) {
+                if(contourArea(contour[i]) > contourArea(biggest_blob)){
+                    biggest_blob = contour[i];
+                }
+            }
+
+            vector<vector<Point>> temp;
+            temp.push_back(biggest_blob);
+
+            vector<vector<Point>>hull(contour.size());                          //a convex hull around objects
+            for(int i = 0; i < temp.size(); i++){
+                convexHull(Mat(temp[i]), hull[i], false);
+            }
+
+            drawContours(mask_cleaned, hull, 0, 255, -1, 8);                    //-1: fill contours to get blobs
+        }
+
+        imshow("Contour", mask_cleaned);
+
+        image.copyTo(combined, mask_cleaned);
+        imshow("HSV - Press q to quit", combined);
+
+        char key = (char) waitKey(1);                   //waitKey(1): 1ms delay to prevent the program from freezing
+        if (key == 'q') break;
+    }
+
     return;
+}
+
+static void trackbar_callback(int, void *){
+
 }
