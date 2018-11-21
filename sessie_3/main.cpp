@@ -45,7 +45,8 @@ int main(int argc, const char**argv)
     Mat img_display;
     img.copyTo(img_display);
 
-    int match_method  = TM_CCOEFF_NORMED;    //gives the best results
+    int match_method  = TM_CCORR_NORMED;        //gives the best results for our case
+                        //TM_CCOEFF_NORMED;
 
         // Create the result matrix
     int result_cols =  img.cols - templ.cols + 1;
@@ -75,16 +76,17 @@ int main(int argc, const char**argv)
     }
 
         //rectangle around the found object
-    rectangle(img_display, matchLoc, Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), Scalar::all(0), 2, 8, 0);
-    rectangle(result, matchLoc, Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), Scalar::all(0), 2, 8, 0);
+    rectangle(img_display, matchLoc, Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), Scalar(255, 0, 0), 2, 8, 0);
 
         //multiple object matching
     Mat mask;
 
-    threshold(result, mask, 0.9, 1, THRESH_BINARY);
+    threshold(result, mask, 0.89, 1, THRESH_BINARY);    //threshold at 85% of the gray values and returns a mask filled with ones and zeros
     mask.convertTo(mask, CV_8UC1);
-    mask *= 255;                    //the mask has values between 0 and 1 which wont be visible for us
+    mask *= 255;                                        //the mask has values between 0 and 1 which wont be visible for us
 
+    dilate(mask, mask, Mat(), Point(-1, -1), 6);                //prevents some false/double detections
+    erode(mask, mask, Mat(), Point(-1, -1), 6);
 
     vector<vector<Point> > contours;
     findContours(mask, contours, RETR_EXTERNAL, CHAIN_APPROX_NONE);
