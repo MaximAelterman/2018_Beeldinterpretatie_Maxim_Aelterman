@@ -64,45 +64,6 @@ void orb_keypoints(Mat img, Mat obj)
     drawKeypoints(img, keypoints_img, orb_img, Scalar(0, 0, 255), DrawMatchesFlags::DEFAULT);
     drawKeypoints(obj, keypoints_obj, orb_obj, Scalar(0, 0, 255), DrawMatchesFlags::DEFAULT);
 
-        //homography through RANSAC
-    double max_dist = 0; double min_dist = 100;
-    for(int i = 0; i < descriptors_img.rows; i++){
-        double dist = matches[i].distance;
-        if(dist < min_dist) min_dist = dist;
-        if(dist > max_dist) max_dist = dist;
-    }
-
-        //find the good matches
-    std::vector<DMatch> good_matches;
-    for(int i = 0; i < descriptors_img.rows; i++){
-        if(matches[i].distance <= 3*min_dist){
-            good_matches.push_back(matches[i]);
-        }
-    }
-    Mat img_matches;
-
-        //find object in scene
-    std:vector<Point2f> obj;
-    std:vector<Point2f> scene;
-    for(size_t i = 0; u < good_matches.size(); i++){
-        obj.push_back(keypoints_obj[good_matches[i].queryIdx].pt);
-        scene.push_back(keypoints_img[good_matches[i].queryIdx].pt);
-    }
-
-    Mat H = findHomography(obj, scene, RANSAC);
-
-        //draw rectangle over found object
-    std::vector<Point2f> obj_corners(4);
-    obj_corners[0] = cvPoint(0, 0); obj_corners[1] = cvPoint(img.cols, 0);
-    obj_corners[2] = cvPoint(0, img.rows); obj_corners[3] = cvPoint(img.cols, img.rows);
-    line(result, )
-
-
-    //Mat result;
-    //foto.copyTo(canvasTemplate())
-
-    //hconcat(orb_img, orb_obj, result);
-
     namedWindow("ORB image", WINDOW_AUTOSIZE);
     imshow("ORB image", orb_img);
 
@@ -112,9 +73,56 @@ void orb_keypoints(Mat img, Mat obj)
     namedWindow("ORB matches (bruteforce)", WINDOW_AUTOSIZE);
     imshow("ORB matches (bruteforce)", img_matches);
 
-    namedWindow("ORB matches (RANSAC)", WINDOW_AUTOSIZE);
-    imshow("ORB matches (RANSAC)", H);
+        //homography through RANSAC
+    Mat result;
+    double max_dist = 0; double min_dist = 100;
+    for(int i = 0; i < descriptors_img.rows; i++){
+        double dist = matches[i].distance;
+        if(dist < min_dist) min_dist = dist;
+        if(dist > max_dist) max_dist = dist;
+    }
 
+        //find the good matches
+    vector<DMatch> good_matches;
+    for(int i = 0; i < descriptors_img.rows; i++){
+        if(matches[i].distance <= 3*min_dist){
+            good_matches.push_back(matches[i]);
+        }
+    }
+
+        drawMatches(img, keypoints_img, obj, keypoints_obj, good_matches, result);
+
+        //find object in scene
+    vector<Point2f> objct, scene;
+    for(size_t i = 0; i < good_matches.size(); i++){
+        objct.push_back(keypoints_obj[good_matches[i].queryIdx].pt);
+        scene.push_back(keypoints_img[good_matches[i].queryIdx].pt);
+    }
+
+    Mat H = findHomography(objct, scene, RANSAC);
+
+        //Draw rectangle around object
+    vector<Point2f> obj_corners(4);
+    obj_corners[0] = cvPoint(0, 0); obj_corners[1] = cvPoint(obj.cols, 0);
+    obj_corners[2] = cvPoint(0, obj.rows); obj_corners[3] = cvPoint(obj.cols, obj.rows);
+
+    vector<Point2f> scene_corners(4);
+    perspectiveTransform(obj_corners, scene_corners, H);
+
+/*
+    line(result, obj_corners[0], obj_corners[1], Scalar(0, 255, 0), 5, LINE_8, 0);
+    line(result, obj_corners[0], obj_corners[2], Scalar(0, 255, 0), 5, LINE_8, 0);
+    line(result, obj_corners[2], obj_corners[3], Scalar(0, 255, 0), 5, LINE_8, 0);
+    line(result, obj_corners[1], obj_corners[3], Scalar(0, 255, 0), 5, LINE_8, 0);
+*/
+
+    line(result, scene_corners[0] + Point2f((float)obj.cols, 0), scene_corners[1] + Point2f((float)obj.cols, 0), Scalar(0, 255, 0), 2);
+    line(result, scene_corners[1] + Point2f((float)obj.cols, 0), scene_corners[2] + Point2f((float)obj.cols, 0), Scalar(0, 255, 0), 2);
+    line(result, scene_corners[2] + Point2f((float)obj.cols, 0), scene_corners[3] + Point2f((float)obj.cols, 0), Scalar(0, 255, 0), 2);
+    line(result, scene_corners[3] + Point2f((float)obj.cols, 0), scene_corners[0] + Point2f((float)obj.cols, 0), Scalar(0, 255, 0), 2);
+
+    namedWindow("ORB matches (RANSAC)", WINDOW_AUTOSIZE);
+    imshow("ORB matches (RANSAC)", result);
 
     waitKey(0);
     destroyAllWindows();
