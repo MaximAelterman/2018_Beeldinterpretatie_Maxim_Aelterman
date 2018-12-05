@@ -22,7 +22,10 @@ static void onMouse(int event, int x, int y, int, void*pointer)
 
     if(event == EVENT_MBUTTONDOWN)
     {
-        cout << "" << endl;
+        for(int i = 0; i < p->size(); i++)
+        {
+            cout << p[i] << endl;
+        }
     }
 }
 
@@ -59,19 +62,13 @@ int main(int argc, const char**argv)
     setMouseCallback("afbeelding", onMouse, &background);
     waitKey(0);
 
-/*
-    Mat bgr[3];
-    split(image, bgr);
-    bgr[1] = Mat::zeros(image.rows, image.cols, CV_8UC1);
-    merge(bgr, 3, image);
-*/
     cvtColor(image, img_hsv, CV_BGR2HSV);
     GaussianBlur(img_hsv, img_hsv, Size(5, 5), 0);
 
         //make descriptors with the selected points
             //foreground
     Mat trainingDataForeground(strawberry.size(), 3, CV_32FC1);
-    Mat labels_fg = Mat::ones(strawberry.size(), 1, CV_32FC1);
+    Mat labels_fg = Mat::ones(strawberry.size(), 1, CV_32SC1);
 
     for(int i = 0; i < strawberry.size(); i++)
     {
@@ -83,7 +80,7 @@ int main(int argc, const char**argv)
 
             //background
     Mat trainingDataBackground(background.size(), 3, CV_32FC1);
-    Mat labels_bg = Mat::zeros(background.size(), 1, CV_32FC1);
+    Mat labels_bg = Mat::zeros(background.size(), 1, CV_32SC1);
 
     for(int i = 0; i < background.size(); i++)
     {
@@ -100,7 +97,7 @@ int main(int argc, const char**argv)
     vconcat(trainingDataForeground, trainingDataBackground, trainingData);
     vconcat(labels_fg, labels_bg, labels);
 
-        //K-nearest
+        //K-nearest-Neighbor
     Ptr<TrainData> trainingD;
     Ptr<KNearest> kclassifier = KNearest::create();
 
@@ -110,11 +107,11 @@ int main(int argc, const char**argv)
     kclassifier->setDefaultK(3);
     kclassifier->train(trainingD);
 
-    cout << "K-nearest training complete!" << CV_VERSION << endl;
+    cout << "K-nearest-neighbor training complete!" << endl;
 
         //Normal bayes
     Ptr<NormalBayesClassifier> bayes = NormalBayesClassifier::create();
-    bayes->train(trainingD, ROW_SAMPLE, labels);
+    bayes->train(trainingData, ROW_SAMPLE, labels);
 
     cout << "Normal Bayes training complete!" << endl;
 
@@ -123,7 +120,7 @@ int main(int argc, const char**argv)
     svm->setType(SVM::C_SVC);
     svm->setKernel(SVM::LINEAR);
     svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 100, 1e-6));
-    svm->train(trainingD, ROW_SAMPLE, labels);
+    svm->train(trainingData, ROW_SAMPLE, labels);
 
     cout << "SVM training complete!" << endl;
 
@@ -147,16 +144,16 @@ int main(int argc, const char**argv)
             bayes->predict(data, labels_normalBayes);
             svm->predict(data, labels_svm);
 
-            // Convert the matched labels to a binary mask
+                //generate mask
             result_knn.at<uchar>(i,j) = (uchar)labels_knn.at<float>(0,0);
             result_nb.at<uchar>(i,j) = (uchar)labels_normalBayes.at<int>(0,0);
             result_svm.at<uchar>(i,j) = (uchar)labels_svm.at<float>(0,0);
         }
     }
 
-    imshow("result Knn", result_knn*255);
-    imshow("result Normal Bayes", result_nb*255);
-    imshow("result Svm", result_svm*255);
+    imshow("K-Nearest-Neighbor", result_knn*255);
+    imshow("Normal Bayes", result_nb*255);
+    imshow("Svm", result_svm*255);
 
     waitKey(0);
     return 0;
