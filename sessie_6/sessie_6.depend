@@ -778,3 +778,7 @@
 	<vector>
 	"opencv2/imgproc.hpp"
 
+1544172789 source:/home/student/Github/2018_beeldinterpretatie_Maxim_Aelterman/sessie_6/main.cpp
+	<iostream>
+	<opencv2/opencv.hpp>
+
