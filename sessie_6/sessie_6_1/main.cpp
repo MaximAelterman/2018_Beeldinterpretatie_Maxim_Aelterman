@@ -16,8 +16,8 @@ int main(int argc, const char**argv)
     );
 
     string movPath = parser.get<string>("@movie");
-    string cascadePath = "/home/student/Github/2018_beeldinterpretatie_Maxim_Aelterman/sessie_6/bin/Debug/haarcascade_frontalface_alt.xml";
-    string lbpPath = "/home/student/Github/2018_beeldinterpretatie_Maxim_Aelterman/sessie_6/bin/Debug/lbpcascade_frontalface_improved.xml";
+    string cascadePath = "haarcascade_frontalface_alt.xml";
+    string lbpPath = "lbpcascade_frontalface_improved.xml";
 
     if(movPath.empty()){
         cerr << "Something went wrong with your arguments: --h for help" << endl;
@@ -54,23 +54,20 @@ void detectFace(Mat frame)
 {
     vector<Rect> faces_cascade, faces_lbp;
     Mat frame_gray;
-    vector<int> cascade_rej, lbp_rej;
-    vector<double> cascade_weight, lbp_weight;
-    bool cascade_outpRej, lbp_outputRej;
+    vector<int> cascade_weight, lbp_weight;
 
     cvtColor(frame, frame_gray, CV_BGR2GRAY);
     equalizeHist(frame_gray, frame_gray);
 
       //detect faces with HAAR
-    face_cascade.detectMultiScale(frame_gray, faces_cascade, cascade_rej, cascade_weight, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, Size(30, 30), true);
-
-    face_lbp.detectMultiScale(frame_gray, faces_lbp, lbp_rej, lbp_weight, 1.1, 2, 0|CASCADE_SCALE_IMAGE, Size(30, 30), true);
+    face_cascade.detectMultiScale(frame_gray, faces_cascade, cascade_weight, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, Size(30, 30));
+    face_lbp.detectMultiScale(frame_gray, faces_lbp, lbp_weight, 1.1, 2, 0|CASCADE_SCALE_IMAGE, Size(30, 30));
 
     for(size_t i = 0; i < faces_cascade.size(); i++)
     {
         Point center(faces_cascade[i].x + faces_cascade[i].width*0.5, faces_cascade[i].y + faces_cascade[i].height*0.5);
-        ellipse(frame, center, Size( faces_cascade[i].width*0.5, faces_cascade[i].height*0.5), 0, 0, 360, Scalar(0, 255, 0), 3, LINE_8, 0);
-        putText(frame, "test", cvPoint(30, 30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200, 200, 250), 1, CV_AA);
+        ellipse(frame, center, Size(faces_cascade[i].width*0.5, faces_cascade[i].height*0.5), 0, 0, 360, Scalar(0, 255, 0), 3, LINE_8, 0);
+        putText(frame, to_string(cascade_weight[i]), Point(faces_cascade[i].x, faces_cascade[i].y), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(0, 255, 0), 1, CV_AA);
 
         Mat faceROI = frame_gray(faces_cascade[i]);
     }
@@ -79,6 +76,7 @@ void detectFace(Mat frame)
     {
         Point center(faces_lbp[i].x + faces_lbp[i].width*0.5, faces_lbp[i].y + faces_lbp[i].height*0.5);
         ellipse(frame, center, Size( faces_lbp[i].width*0.5, faces_lbp[i].height*0.5), 0, 0, 360, Scalar(0, 0, 255), 3, LINE_8, 0);
+        putText(frame, to_string(lbp_weight[i]), Point(faces_lbp[i].x + faces_lbp[i].width, faces_lbp[i].y), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(0, 0, 255), 1, CV_AA);
 
         Mat faceROI = frame_gray(faces_lbp[i]);
     }
